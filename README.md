@@ -40,9 +40,15 @@ e.g. "Quick brown fox and friends"
 final ConcurrentMap<Integer, AtomicInteger> words = 
 	new ConcurrentSkipListMap<Integer, AtomicInteger>();
 
+// Each block consists of 200 lines
+final int blockSize = 200;
+
+// Number of total factory workers
+final int workerSize = 20;
+
 // Create factory and job implementation
 QuillFactory<String, String> factory = 
-  new QuillFactory<String, String>(200,20, new QuillFactory.IJob<String, String>() {
+  new QuillFactory<String, String>(blockSize, workerSize, new QuillFactory.IJob<String, String>() {
   	
   	@Override
   	public void onBlockReceived(Iterator<String> iterator, 
