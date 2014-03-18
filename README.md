@@ -56,12 +56,12 @@ QuillFactory<String, String> factory =
   		String line;
   		Integer tempLen;
   
-  		while(iterator.hasNext()) {
+  		while(iterator.hasNext()) { // for each line in block
   
   			line = iterator.next();
   			StringTokenizer tokens = new StringTokenizer(line);
   			
-  			while(tokens.hasMoreTokens()) {
+  			while(tokens.hasMoreTokens()) { // for each word in line
   				tempLen = tokens.nextToken().length();
   				words.putIfAbsent(tempLen, new AtomicInteger(0));
   				words.get(tempLen).incrementAndGet();
