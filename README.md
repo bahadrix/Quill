@@ -17,7 +17,8 @@ e.g. "Quick brown fox and friends"
 ```java
 
 // Output map
-final ConcurrentMap<Integer, AtomicInteger> words = new ConcurrentSkipListMap<Integer, AtomicInteger>();
+final ConcurrentMap<Integer, AtomicInteger> words = 
+	new ConcurrentSkipListMap<Integer, AtomicInteger>();
 
 // Create factory and job implementation
 QuillFactory<String, String> factory = 
