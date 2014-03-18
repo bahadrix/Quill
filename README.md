@@ -65,16 +65,22 @@ QuillFactory<String, String> factory =
   	}
 });
 
+//Read the sample file
 File sampleTextFile = new File("sample.txt");
 BufferedReader br = new BufferedReader(new FileReader(sampleTextFile));
 
+
 String line;
 while ((line = br.readLine()) != null) {
+	// Pass each line to the factory.
+	// When the first block has filled then the factory starts working.
 	factory.commit(line);
 }
 
 br.close();
-factory.close(); // wait until complete
+
+// Close the factory. Must be called!
+factory.close(); // Wait until complete
 
 // Print results
 for(Integer wordlen : words.keySet()) {
