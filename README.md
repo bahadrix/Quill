@@ -1,7 +1,27 @@
 Quill
 =====
 
-Library for easy and powerful Java multi-threading in approach of Hadoop and CUDA
+Light-weight library for easy and powerful Java multi-threading in approach of Hadoop and CUDA
+
+
+## Maven Dependency
+```xml
+<repositories>
+	<repository>
+	    <id>repo.bahadir.me</id>
+	    <name>Bahadir's Repo</name>
+	    <url>http://repo.bahadir.me</url>
+	</repository>
+</repositories>
+
+<dependencies>
+        <dependency>
+            <groupId>me.bahadir</groupId>
+            <artifactId>Quill</artifactId>
+            <version>0.8</version>
+        </dependency>
+</dependencies>
+```
 
 ## Examples
 ### Word Count by Length
