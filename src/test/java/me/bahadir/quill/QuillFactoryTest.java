@@ -71,12 +71,40 @@ public class QuillFactoryTest {
         }
         br.close();
         factory.close(); // wait until complete
-
-
-        for(Integer wordlen : words.keySet()) {
-
-            System.out.println(String.format("%d: %d", wordlen, words.get(wordlen).get()));
-        }
+        /* Correct results from Hadoop
+        1       5212
+        2       18571
+        3       23515
+        4       19787
+        5       12280
+        6       8927
+        7       6938
+        8       4785
+        9       3136
+        10      1901
+        11      1100
+        12      683
+        13      358
+        14      179
+        15      84
+        16      34
+        17      16
+        18      8
+        19      5
+        20      5
+        21      4
+        23      1
+        24      1
+        29      1
+        30      1
+        36      1
+        */
+        //Test some values
+        Assert.assertEquals("Word length of 2 is incorrect",5212,  words.get(1).get());
+        Assert.assertEquals("Word length of 2 is incorrect",18571, words.get(2).get());
+        Assert.assertEquals("Word length of 3 is incorrect",23515, words.get(3).get());
+        Assert.assertEquals("Word length of 4 is incorrect",19787, words.get(4).get());
+        Assert.assertEquals("Word length of 3 is incorrect",12280, words.get(5).get());
 
     }
 }

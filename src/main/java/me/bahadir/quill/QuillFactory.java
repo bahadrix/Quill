@@ -5,9 +5,11 @@ import org.apache.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Creates threads and controls them.
@@ -24,6 +26,12 @@ public class QuillFactory<T0, T1> {
      * @param <T3> Output type
      */
     static interface IJob<T2,T3> {
+        /**
+         * Fires when the block received by worker.
+         * @param iterator Iterator of block items
+         * @param output Output collection for results
+         * @param workerName Name of the worker
+         */
         public void onBlockReceived(Iterator<T2> iterator, BlockingQueue<T3> output, String workerName);
     }
 
@@ -34,7 +42,7 @@ public class QuillFactory<T0, T1> {
     private BlockingQueue<T0> currentBlock;
     private final int workerCount;
 
-    private final BlockingQueue<BlockingQueue<T0>> queue;
+    private final Queue<BlockingQueue<T0>> queue;
 
     private int cntrBlocksQueued;
     private int cntrItemsPackaged;
@@ -43,19 +51,20 @@ public class QuillFactory<T0, T1> {
     private List<Worker> workers;
 
     class Worker implements Runnable {
-        private final BlockingQueue<BlockingQueue<T0>> queue;
+        private final Queue<BlockingQueue<T0>> queue;
         public final String name;
         private BlockingQueue<T0> block;
         private int cntrWorkComplete;
         private long itemsBurned;
         private final QuillFactory factory;
-
-        protected Worker(QuillFactory factory, BlockingQueue<BlockingQueue<T0>> queue, String name) {
+        private boolean atWork;
+        protected Worker(QuillFactory factory, Queue<BlockingQueue<T0>> queue, String name) {
             this.factory = factory;
             this.queue = queue;
             this.name = name;
             this.cntrWorkComplete = 0;
             this.itemsBurned = 0;
+            this.atWork = false;
         }
 
         public int getCntrWorkComplete() {
@@ -68,37 +77,37 @@ public class QuillFactory<T0, T1> {
 
         @Override
         public void run() {
-            try {
+            long nullCount = 0;
 
-                // if there is no work and factory is open, then wait.
-                while( queue.isEmpty() ) {
-                    if(factory.isClosed()) {
-                        // if there is no work and factory is closed, go home.
-                        end();
-                        return;
+            while(true){
+                block = null;
+                synchronized (QuillFactory.this) {
+
+                    if(queue.isEmpty() && factory.isClosed()) {
+                        break;
+                    } else if(!queue.isEmpty()) {
+                        block = queue.poll();
                     }
-                };
-
-                block = queue.take();
-                itemsBurned += block.size();
-                job.onBlockReceived(block.iterator(), outputQueue, name);
-                cntrWorkComplete++;
-
-                //Re-run
-                run();
-
-
-
-            } catch (InterruptedException iex) {
-                log.warn("Worker " + name + " ended.");
-            } catch (Exception e) {
-                log.error(e);
-                e.printStackTrace();
+                }
+                if(block != null) {
+                    job.onBlockReceived(block.iterator(), outputQueue, name);
+                    cntrWorkComplete++;
+                    itemsBurned += block.size();
+                } else {
+                    nullCount++;
+                }
             }
+
+            log.info("Worker " + name + " gone home with " + nullCount + " empty cycles.");
+
+        }
+
+        public Thread getThread() {
+            return Thread.currentThread();
         }
 
         public void end() {
-            Thread.currentThread().interrupt();
+            //Thread.currentThread().interrupt();
             log.info("Worker " + name + " ended.");
         }
 
@@ -136,7 +145,7 @@ public class QuillFactory<T0, T1> {
     private void createThreads() {
         log.info("Creating threads.");
         for (int i = 0; i < workerCount; i++) {
-            Worker worker =  new Worker(this, this.queue, String.valueOf(i));
+            Worker worker =  new Worker(this, this.queue, String.valueOf(i + 100));
             workers.add(worker);
             threads.add(new Thread(worker));
         }
@@ -145,10 +154,11 @@ public class QuillFactory<T0, T1> {
 
     private void startAllThread() {
         log.info("Starting all threads");
+        setClosed(false);
         for(Thread t : threads) {
             t.start();
         }
-        setClosed(false);
+
 
     }
 
@@ -205,7 +215,7 @@ public class QuillFactory<T0, T1> {
      */
     public boolean isRunning() {
         for(Thread t : threads) {
-            if(t.isAlive()) {
+            if(!t.isInterrupted()) {
                 return true;
             }
         }
@@ -240,59 +250,49 @@ public class QuillFactory<T0, T1> {
             return;
         }
 
+        // If there is block send it
         if(currentBlock.size() > 0)
             commitCurrentBlock();
 
+        // Make sure that queue is empty
+        while(!queue.isEmpty()) {}
+
         setClosed(true);
 
-        while(!queue.isEmpty()) {
-            joinAll();
-        }
+        joinAll();
 
-        stopAllThreads();
-
-
-
-        if(!queue.isEmpty()) {
-            log.error("Job queue still has elements");
-        } else {
-            int totalBlocksBurned = 0;
-            int totalItemsBurned = 0;
-            String workerStats = "";
-            for(Worker worker : workers) {
-                workerStats += String.format(
-                        "\n\tWorker %s: Blocks burned %d, Items burned: %d",
-                        worker.name, worker.getCntrWorkComplete(), worker.getItemsBurned()
-                );
-                totalBlocksBurned += worker.getCntrWorkComplete();
-                totalItemsBurned += worker.getItemsBurned();
-            }
-
-            if(totalBlocksBurned != cntrBlocksQueued) {
-                log.error("Not all blocks burned!");
-                return;
-            } else if (totalItemsBurned != cntrItemsPackaged) {
-                log.error("Not all items burned!");
-                return;
-            }
-
-            log.info("Factory closing report:" +
-                    "\n--------------------------------" +
-                    "\nJOB Finished" +
-                    "\n---------------------------------" +
-                    String.format("\nBlocks burned/queued: %d \t\t%.1f%%", cntrBlocksQueued, 100*(float)totalBlocksBurned/cntrBlocksQueued) +
-                    String.format("\nItems burned/packaged: %d \t%.1f%%", cntrItemsPackaged, 100*(float)totalItemsBurned/cntrItemsPackaged) +
-                    "\nWorkers:" +
-                    workerStats +
-                    "\n"
-
+        int totalBlocksBurned = 0;
+        int totalItemsBurned = 0;
+        String workerStats = "";
+        for(Worker worker : workers) {
+            workerStats += String.format(
+                    "\n\tWorker %s: Blocks burned %d, Items burned: %d",
+                    worker.name, worker.getCntrWorkComplete(), worker.getItemsBurned()
             );
+            totalBlocksBurned += worker.getCntrWorkComplete();
+            totalItemsBurned += worker.getItemsBurned();
         }
 
+        if(totalBlocksBurned != cntrBlocksQueued) {
+            log.error(String.format("Not all blocks burned! %d/%d", totalBlocksBurned, cntrBlocksQueued));
+            return;
+        } else if (totalItemsBurned != cntrItemsPackaged) {
+            log.error("Not all items burned!");
+            return;
+        }
+
+        log.info("Factory closing report:" +
+                "\n--------------------------------" +
+                "\nJOB Finished" +
+                "\n---------------------------------" +
+                String.format("\nBlocks burned/queued: %d \t\t%.1f%%", cntrBlocksQueued, 100*(float)totalBlocksBurned/cntrBlocksQueued) +
+                String.format("\nItems burned/packaged: %d \t%.1f%%", cntrItemsPackaged, 100*(float)totalItemsBurned/cntrItemsPackaged) +
+                "\nWorkers:" +
+                workerStats +
+                "\n"
+
+        );
         resetCounters();
-
-
-
     }
 
     /**
