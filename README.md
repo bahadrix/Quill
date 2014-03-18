@@ -84,7 +84,6 @@ factory.close(); // Wait until complete
 
 // Print results
 for(Integer wordlen : words.keySet()) {
-
 	System.out.println(String.format("%d: %d", wordlen, words.get(wordlen).get()));
 }
 
